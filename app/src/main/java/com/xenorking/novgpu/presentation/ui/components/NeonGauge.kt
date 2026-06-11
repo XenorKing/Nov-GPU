@@ -79,13 +79,15 @@ fun NeonGauge(
                 )
             }
 
-            // Main arc
+            // Main arc with sweep gradient
             if (progress > 0f) {
                 drawArc(
                     brush = Brush.sweepGradient(
-                        0f to color.copy(alpha = 0.4f),
-                        progress to color,
-                        colors = listOf(color.copy(alpha = 0.5f), color)
+                        colorStops = arrayOf(
+                            0f to color.copy(alpha = 0.5f),
+                            progress to color
+                        ),
+                        center = center
                     ),
                     startAngle = startAngle,
                     sweepAngle = sweepAngle * progress,
