@@ -1,114 +1,82 @@
 package com.xenorking.novgpu.presentation.ui.components
 
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun NeonLineChart(
     data: List<Float>,
-    color: Color,
-    modifier: Modifier = Modifier,
-    height: Dp = 80.dp,
     maxValue: Float = 100f,
-    showGrid: Boolean = true
+    color: Color,
+    label: String = "",
+    height: Dp = 80.dp,
+    modifier: Modifier = Modifier
 ) {
-    Canvas(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(height)
-    ) {
-        if (data.isEmpty()) return@Canvas
+    val animProgress by animateFloatAsState(
+        targetValue = if (data.isEmpty()) 0f else 1f,
+        animationSpec = tween(600, easing = FastOutSlowInEasing),
+        label = "chartAnim"
+    )
 
-        val w = size.width
-        val h = size.height
-        val padding = 4f
+    val glowAlpha by rememberInfiniteTransition(label = "chartGlow").animateFloat(
+        initialValue = 0.08f, targetValue = 0.18f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Reverse),
+        label = "chartGlowAlpha"
+    )
 
-        val effectiveMax = maxValue.coerceAtLeast(data.maxOrNull() ?: 1f)
+    Column(modifier = modifier) {
+        if (label.isNotEmpty()) {
+            Text(text = label, color = color.copy(alpha = 0.7f), fontSize = 11.sp, letterSpacing = 0.8.sp)
+            Spacer(Modifier.height(4.dp))
+        }
+        Canvas(modifier = Modifier.fillMaxWidth().height(height)) {
+            if (data.size < 2) return@Canvas
+            val w = size.width
+            val h = size.height
+            val visibleCount = (data.size * animProgress).toInt().coerceAtLeast(2).coerceAtMost(data.size)
+            val visible = data.takeLast(visibleCount)
+            val step = w / (visible.size - 1).toFloat()
 
-        // Grid lines
-        if (showGrid) {
-            val gridAlpha = 0.08f
-            repeat(4) { i ->
-                val y = h - (i + 1) * h / 4f
-                drawLine(
-                    color = color.copy(alpha = gridAlpha),
-                    start = Offset(0f, y),
-                    end = Offset(w, y),
-                    strokeWidth = 1f
-                )
+            fun yFor(v: Float) = h - (v / maxValue.coerceAtLeast(1f)).coerceIn(0f, 1f) * h * 0.9f
+
+            val points = visible.mapIndexed { i, v -> Offset(i * step, yFor(v)) }
+
+            // Область под кривой
+            val path = Path().apply {
+                moveTo(points.first().x, h)
+                points.forEach { lineTo(it.x, it.y) }
+                lineTo(points.last().x, h)
+                close()
+            }
+            drawPath(path, Brush.verticalGradient(listOf(color.copy(alpha = 0.15f), Color.Transparent)))
+
+            // Мягкое свечение линии
+            val linePath = Path().apply {
+                moveTo(points.first().x, points.first().y)
+                for (i in 1 until points.size) {
+                    val cp = Offset((points[i-1].x + points[i].x) / 2f, (points[i-1].y + points[i].y) / 2f)
+                    quadraticTo(points[i-1].x, points[i-1].y, cp.x, cp.y)
+                }
+                lineTo(points.last().x, points.last().y)
+            }
+            drawPath(linePath, color.copy(alpha = glowAlpha), style = Stroke(width = 6f, cap = StrokeCap.Round))
+            drawPath(linePath, color, style = Stroke(width = 2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+            // Последняя точка
+            points.lastOrNull()?.let { pt ->
+                drawCircle(color.copy(alpha = 0.25f), radius = 8f, center = pt)
+                drawCircle(color, radius = 4f, center = pt)
             }
         }
-
-        if (data.size < 2) return@Canvas
-
-        val step = w / (data.size - 1).toFloat()
-
-        // Build path
-        val linePath = Path()
-        val fillPath = Path()
-
-        data.forEachIndexed { i, value ->
-            val x = i * step
-            val y = h - padding - ((value / effectiveMax) * (h - padding * 2)).coerceIn(0f, h - padding * 2)
-            if (i == 0) {
-                linePath.moveTo(x, y)
-                fillPath.moveTo(x, h)
-                fillPath.lineTo(x, y)
-            } else {
-                // Smooth curve
-                val prevX = (i - 1) * step
-                val prevY = h - padding - ((data[i - 1] / effectiveMax) * (h - padding * 2)).coerceIn(0f, h - padding * 2)
-                val cpX = (prevX + x) / 2f
-                linePath.cubicTo(cpX, prevY, cpX, y, x, y)
-                fillPath.cubicTo(cpX, prevY, cpX, y, x, y)
-            }
-        }
-
-        val lastX = (data.size - 1) * step
-        fillPath.lineTo(lastX, h)
-        fillPath.close()
-
-        // Glow effect
-        drawPath(
-            path = linePath,
-            color = color.copy(alpha = 0.4f),
-            style = Stroke(width = 6f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-
-        // Fill gradient
-        drawPath(
-            path = fillPath,
-            brush = Brush.verticalGradient(
-                colors = listOf(color.copy(alpha = 0.25f), Color.Transparent),
-                startY = 0f,
-                endY = h
-            )
-        )
-
-        // Main line
-        drawPath(
-            path = linePath,
-            color = color,
-            style = Stroke(width = 2.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-        )
-
-        // Latest value dot
-        val lastIdx = data.size - 1
-        val lastY = h - padding - ((data[lastIdx] / effectiveMax) * (h - padding * 2)).coerceIn(0f, h - padding * 2)
-        drawCircle(color = color.copy(alpha = 0.4f), radius = 8f, center = Offset(lastX, lastY))
-        drawCircle(color = color, radius = 4f, center = Offset(lastX, lastY))
-        drawCircle(color = Color.White, radius = 2f, center = Offset(lastX, lastY))
     }
 }
