@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            NovGPUTheme {
+            NovGpuTheme {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 NovGPUApp(
                     state       = state,
