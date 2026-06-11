@@ -1,0 +1,4 @@
+-keep class com.xenorking.novgpu.** { *; }
+-keepattributes *Annotation*
+-dontwarn okhttp3.**
+-dontwarn okio.**
