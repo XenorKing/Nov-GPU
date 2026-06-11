@@ -14,13 +14,9 @@ env:
   GRADLE_OPTS: '-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true'
 
 jobs:
-  # ─────────────────────────────────────────
-  # 1. Build & Test
-  # ─────────────────────────────────────────
   build:
     name: Build & Test
-    runs-on:
-  workflow_dispatch: ubuntu-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -28,14 +24,14 @@ jobs:
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          java-version:
-  workflow_dispatch: ${{ env.JAVA_VERSION }}
-          distribution:
-  workflow_dispatch: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
           cache: 'gradle'
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -43,10 +39,11 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-            .gradle/caches
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/libs.versions.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
@@ -61,21 +58,9 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 14
 
-      - name: Upload Test Results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ github.sha }}
-          path: app/build/reports/tests/
-          retention-days: 7
-
-  # ─────────────────────────────────────────
-  # 2. Code Quality
-  # ─────────────────────────────────────────
   lint:
-    name: Lint & Code Quality
-    runs-on:
-  workflow_dispatch: ubuntu-latest
+    name: Lint
+    runs-on: ubuntu-latest
     needs: build
     steps:
       - name: Checkout code
@@ -84,11 +69,14 @@ jobs:
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          java-version:
-  workflow_dispatch: ${{ env.JAVA_VERSION }}
-          distribution:
-  workflow_dispatch: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
           cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -104,13 +92,9 @@ jobs:
           path: app/build/reports/lint-results-debug.html
           retention-days: 7
 
-  # ─────────────────────────────────────────
-  # 3. Release Build (only on release tags)
-  # ─────────────────────────────────────────
   release:
-    name: Release Build & Sign
-    runs-on:
-  workflow_dispatch: ubuntu-latest
+    name: Release Build
+    runs-on: ubuntu-latest
     needs: [ build, lint ]
     if: github.event_name == 'release' && github.event.action == 'created'
     steps:
@@ -120,11 +104,14 @@ jobs:
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
         with:
-          java-version:
-  workflow_dispatch: ${{ env.JAVA_VERSION }}
-          distribution:
-  workflow_dispatch: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
           cache: 'gradle'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -132,49 +119,19 @@ jobs:
       - name: Build Release APK
         run: ./gradlew assembleRelease --stacktrace
 
-      - name: Sign APK
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
       - name: Upload Release APK to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            app/build/outputs/apk/release/*.apk
+          files: app/build/outputs/apk/release/*.apk
           token: ${{ secrets.GITHUB_TOKEN }}
           generate_release_notes: true
 
-      - name: Build Release AAB (for Play Store)
+      - name: Build Release AAB
         run: ./gradlew bundleRelease --stacktrace
 
-      - name: Upload AAB Artifact
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: novGPU-release-aab-${{ github.sha }}
           path: app/build/outputs/bundle/release/*.aab
           retention-days: 30
-
-  # ─────────────────────────────────────────
-  # 4. Notify on success
-  # ─────────────────────────────────────────
-  notify:
-    name: Build Summary
-    runs-on:
-  workflow_dispatch: ubuntu-latest
-    needs: [ build, lint ]
-    if: always()
-    steps:
-      - name: Build Status
-        run: |
-          echo "====================================="
-          echo "  novGPU Build Complete"
-          echo "  Branch: ${{ github.ref_name }}"
-          echo "  Commit: ${{ github.sha }}"
-          echo "  Status: ${{ needs.build.result }}"
-          echo "====================================="
