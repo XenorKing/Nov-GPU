@@ -1,15 +1,16 @@
 package com.xenorking.novgpu.presentation.ui.screens
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -19,219 +20,182 @@ import com.xenorking.novgpu.presentation.ui.components.*
 import com.xenorking.novgpu.presentation.ui.theme.*
 
 @Composable
-fun DashboardScreen(stats: SystemStats) {
+fun DashboardScreen(stats: SystemStats, modifier: Modifier = Modifier) {
+    val scrollState = rememberScrollState()
+
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .background(DarkBg)
-            .verticalScroll(rememberScrollState())
+            .verticalScroll(scrollState)
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Top gauges row
+        // Заголовок
+        AnimatedHeader()
+
+        // Главные индикаторы
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            NeonGauge(
-                value = stats.cpu.usagePercent,
-                color = CpuColor,
-                label = "CPU",
-                size = 110.dp
+            NeonGauge(value = stats.cpu.usagePercent, color = NeonCyan,  label = "ПРОЦЕССОР", size = 110.dp)
+            NeonGauge(value = stats.gpu.usagePercent, color = NeonGreen, label = "GPU",       size = 110.dp)
+            NeonGauge(value = stats.ram.usagePercent, color = NeonPurple,label = "ОЗУ",       size = 110.dp)
+        }
+
+        // Карточки статистики
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NeonStatCard(
+                title    = "ЗАРЯД",
+                value    = "${stats.battery.level}%",
+                subtitle = if (stats.battery.isCharging) "⚡ Заряжается" else "Напряжение: ${"%.2f".format(stats.battery.voltage)} В",
+                color    = NeonYellow,
+                modifier = Modifier.weight(1f)
             )
-            NeonGauge(
-                value = stats.gpu.usagePercent,
-                color = GpuColor,
-                label = "GPU",
-                size = 110.dp
-            )
-            NeonGauge(
-                value = stats.ram.usagePercent,
-                color = RamColor,
-                label = "RAM",
-                size = 110.dp
+            NeonStatCard(
+                title    = "ТЕМП. БАТАРЕИ",
+                value    = "${"%.1f".format(stats.temperature.batteryTemp)}°C",
+                subtitle = stats.battery.health,
+                color    = tempColor(stats.temperature.batteryTemp),
+                modifier = Modifier.weight(1f)
             )
         }
 
-        // CPU Card
-        NeonStatCard(accentColor = CpuColor) {
-            SectionHeader("CPU", stats.cpu.usagePercent, "%", CpuColor)
-            Spacer(Modifier.height(8.dp))
-            NeonLineChart(
-                data = stats.cpu.history,
-                color = CpuColor,
-                height = 64.dp
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            NeonStatCard(
+                title    = "СЕТЬ ↓",
+                value    = formatSpeed(stats.network.downloadSpeedKbps),
+                subtitle = "Получено: ${stats.network.totalDownloadMb} МБ",
+                color    = NeonBlue,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                StatItem("CORES", "${stats.cpu.coreCount}", CpuColor)
-                StatItem("FREQ", "${stats.cpu.frequencyMhz} MHz", CpuColor)
-                StatItem("ARCH", stats.cpu.architecture.take(8).uppercase(), CpuColor)
-            }
-        }
-
-        // GPU Card
-        NeonStatCard(accentColor = GpuColor) {
-            SectionHeader("GPU", stats.gpu.usagePercent, "%", GpuColor)
-            Spacer(Modifier.height(8.dp))
-            NeonLineChart(
-                data = stats.gpu.history,
-                color = GpuColor,
-                height = 64.dp
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stats.gpu.renderer.take(32),
-                color = GpuColor.copy(alpha = 0.7f),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.5.sp
+            NeonStatCard(
+                title    = "СЕТЬ ↑",
+                value    = formatSpeed(stats.network.uploadSpeedKbps),
+                subtitle = "Отправлено: ${stats.network.totalUploadMb} МБ",
+                color    = NeonPink,
+                modifier = Modifier.weight(1f)
             )
         }
 
-        // RAM Card
-        NeonStatCard(accentColor = RamColor) {
-            SectionHeader("RAM", stats.ram.usagePercent, "%", RamColor)
-            Spacer(Modifier.height(8.dp))
-            NeonProgressBar(
-                progress = stats.ram.usagePercent / 100f,
-                color = RamColor
-            )
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                StatItem("USED", "${stats.ram.usedMb} MB", RamColor)
-                StatItem("FREE", "${stats.ram.availableMb} MB", RamColor)
-                StatItem("TOTAL", "${stats.ram.totalMb} MB", RamColor)
-            }
+        // Графики
+        SectionLabel("ИСТОРИЯ НАГРУЗКИ")
+        NeonChartCard(title = "Процессор %", data = stats.cpu.history.map { it }, color = NeonCyan)
+        NeonChartCard(title = "ОЗУ %", data = stats.ram.history, color = NeonPurple)
+
+        // ОЗУ детали
+        SectionLabel("ОПЕРАТИВНАЯ ПАМЯТЬ")
+        RamDetailCard(stats)
+
+        // Частота CPU
+        if (stats.cpu.frequencyMhz > 0) {
+            SectionLabel("ЧАСТОТА ПРОЦЕССОРА")
+            FreqCard(stats)
         }
 
-        // Network Card
-        NeonStatCard(accentColor = NetDownColor) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("NETWORK", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                Text(
-                    stats.network.connectionType,
-                    color = NetDownColor.copy(alpha = 0.8f),
-                    fontSize = 11.sp,
-                    letterSpacing = 1.sp
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Box(modifier = Modifier.weight(1f)) {
-                    NeonLineChart(data = stats.network.downloadHistory.map { it.toFloat() }, color = NetDownColor, height = 50.dp, maxValue = stats.network.downloadHistory.maxOrNull()?.toFloat()?.coerceAtLeast(1f) ?: 1f)
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    NeonLineChart(data = stats.network.uploadHistory.map { it.toFloat() }, color = NetUpColor, height = 50.dp, maxValue = stats.network.uploadHistory.maxOrNull()?.toFloat()?.coerceAtLeast(1f) ?: 1f)
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatItem("DOWN", formatSpeed(stats.network.downloadSpeedKbps), NetDownColor)
-                StatItem("UP", formatSpeed(stats.network.uploadSpeedKbps), NetUpColor)
-                StatItem("TYPE", stats.network.connectionType, NetDownColor)
-            }
-        }
-
-        // Temperature Card
-        NeonStatCard(accentColor = TempColor) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("TEMPERATURE", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TempGaugeItem("CPU", stats.temperature.cpuTemp)
-                TempGaugeItem("BATTERY", stats.temperature.batteryTemp)
-            }
-            if (stats.temperature.thermalZones.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                stats.temperature.thermalZones.entries.take(4).chunked(2).forEach { row ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        row.forEach { (zone, temp) ->
-                            StatItem(zone.take(10).uppercase(), "%.1f°C".format(temp), TempColor)
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(72.dp))
     }
 }
 
 @Composable
-private fun SectionHeader(title: String, value: Float, unit: String, color: Color) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+private fun AnimatedHeader() {
+    val offset by rememberInfiniteTransition(label = "header").animateFloat(
+        initialValue = -3f, targetValue = 3f,
+        animationSpec = infiniteRepeatable(tween(2500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "headerFloat"
+    )
+    Column(modifier = Modifier.offset(y = offset.dp)) {
         Text(
-            text = title,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.5.sp
+            text = "novGPU",
+            color = NeonCyan,
+            fontSize = 26.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = 3.sp
         )
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = if (unit == "%") "${value.toInt()}" else "%.1f".format(value),
-                color = color,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = unit,
-                color = color.copy(alpha = 0.7f),
-                fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 3.dp, start = 2.dp)
-            )
-        }
+        Text(
+            text = "Мониторинг системы в реальном времени",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 11.sp,
+            letterSpacing = 0.5.sp
+        )
     }
 }
 
 @Composable
-private fun StatItem(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = label, color = Color.White.copy(alpha = 0.4f), fontSize = 9.sp, letterSpacing = 1.sp)
-        Text(text = value, color = color.copy(alpha = 0.9f), fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-private fun TempGaugeItem(label: String, temp: Float) {
-    NeonGauge(
-        value = temp,
-        maxValue = 100f,
-        color = when {
-            temp > 70f -> Color(0xFFFF2200)
-            temp > 50f -> TempColor
-            else -> Color(0xFF00CC88)
-        },
-        label = label,
-        unit = "°C",
-        size = 90.dp
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        color = Color.White.copy(alpha = 0.4f),
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.5.sp
     )
 }
 
-private fun formatSpeed(kbps: Long): String {
-    return when {
-        kbps >= 1024 -> "%.1f MB/s".format(kbps / 1024f)
-        else -> "$kbps KB/s"
+@Composable
+private fun NeonChartCard(title: String, data: List<Float>, color: Color) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Brush.verticalGradient(listOf(color.copy(alpha = 0.07f), Color(0xFF080810))))
+            .border(1.dp, color.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
+            .padding(12.dp)
+    ) {
+        NeonLineChart(data = data, color = color, label = title, height = 70.dp)
     }
+}
+
+@Composable
+private fun RamDetailCard(stats: com.xenorking.novgpu.domain.model.SystemStats) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Brush.verticalGradient(listOf(NeonPurple.copy(alpha = 0.07f), Color(0xFF080810))))
+            .border(1.dp, NeonPurple.copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                Text("Занято: ${stats.ram.usedMb} МБ", color = NeonPurple, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("Всего: ${stats.ram.totalMb} МБ", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+            }
+            NeonProgressBar(progress = stats.ram.usagePercent / 100f, color = NeonPurple, modifier = Modifier.fillMaxWidth())
+            Text("Свободно: ${stats.ram.availableMb} МБ", color = Color.White.copy(alpha = 0.35f), fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun FreqCard(stats: com.xenorking.novgpu.domain.model.SystemStats) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Brush.verticalGradient(listOf(NeonCyan.copy(alpha = 0.07f), Color(0xFF080810))))
+            .border(1.dp, NeonCyan.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                Text("Текущая: ${stats.cpu.frequencyMhz} МГц", color = NeonCyan, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("Макс: ${stats.cpu.maxFrequencyMhz} МГц", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+            }
+            val freqProgress = if (stats.cpu.maxFrequencyMhz > 0) stats.cpu.frequencyMhz.toFloat() / stats.cpu.maxFrequencyMhz else 0f
+            NeonProgressBar(progress = freqProgress, color = NeonCyan, modifier = Modifier.fillMaxWidth())
+            Text("Ядер: ${stats.cpu.coreCount}  •  ${stats.cpu.architecture}", color = Color.White.copy(alpha = 0.3f), fontSize = 10.sp)
+        }
+    }
+}
+
+private fun tempColor(temp: Float): Color = when {
+    temp >= 60f -> Color(0xFFFF3D3D)
+    temp >= 45f -> NeonYellow
+    else        -> NeonGreen
+}
+
+private fun formatSpeed(kbps: Long): String = when {
+    kbps >= 1024 -> "${"%.1f".format(kbps / 1024f)} МБ/с"
+    else         -> "$kbps КБ/с"
 }
