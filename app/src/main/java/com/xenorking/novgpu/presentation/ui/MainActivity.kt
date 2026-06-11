@@ -46,18 +46,18 @@ fun NovGPUApp(
     onTabSelect: (Int) -> Unit
 ) {
     val tabs = listOf(
-        TabItem("ГЛАВНАЯ",    "⬡"),
-        TabItem("ПРОЦЕССОР",  "◈"),
-        TabItem("GPU / ОЗУ",  "◉"),
-        TabItem("СЕТЬ",       "◎"),
-        TabItem("О ПРИЛОЖ.",  "ℹ")
+        TabItem("ГЛАВНАЯ",   "⬡"),
+        TabItem("ПРОЦЕССОР", "◈"),
+        TabItem("GPU/ОЗУ",   "◉"),
+        TabItem("СЕТЬ",      "◎"),
+        TabItem("О НАС",     "ℹ")
     )
 
     Scaffold(
         containerColor = Color(0xFF080810),
         bottomBar = {
             NovGPUBottomBar(
-                tabs       = tabs,
+                tabs        = tabs,
                 selectedTab = state.selectedTab,
                 onTabSelect = onTabSelect
             )
@@ -101,15 +101,16 @@ private fun NovGPUBottomBar(
             val selected = selectedTab == index
             val color = tabColors.getOrElse(index) { NeonCyan }
 
+            val scale by animateFloatAsState(
+                targetValue = if (selected) 1.15f else 1f,
+                animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+                label = "scale_$index"
+            )
+
             NavigationBarItem(
                 selected = selected,
                 onClick  = { onTabSelect(index) },
                 icon = {
-                    val scale by animateFloatAsState(
-                        targetValue = if (selected) 1.15f else 1f,
-                        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-                        label = "iconScale_$index"
-                    )
                     Text(
                         text = tab.icon,
                         fontSize = (16f * scale).sp,
@@ -119,19 +120,18 @@ private fun NovGPUBottomBar(
                 label = {
                     Text(
                         text = tab.label,
-                        fontSize = 8.sp,
+                        fontSize = 7.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                         color = if (selected) color else Color.White.copy(alpha = 0.3f),
-                        letterSpacing = 0.3.sp
+                        letterSpacing = 0.2.sp
                     )
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIndicatorColor   = color.copy(alpha = 0.12f),
-                    indicatorColor           = Color.Transparent,
-                    unselectedIconColor      = Color.White.copy(alpha = 0.3f),
-                    unselectedTextColor      = Color.White.copy(alpha = 0.3f),
-                    selectedIconColor        = color,
-                    selectedTextColor        = color
+                    selectedIndicatorColor = color.copy(alpha = 0.14f),
+                    unselectedIconColor    = Color.White.copy(alpha = 0.3f),
+                    unselectedTextColor    = Color.White.copy(alpha = 0.3f),
+                    selectedIconColor      = color,
+                    selectedTextColor      = color
                 )
             )
         }
