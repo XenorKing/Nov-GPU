@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -80,32 +79,5 @@ fun NeonStatCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-fun NeonProgressBar(
-    progress: Float,
-    color: Color,
-    modifier: Modifier = Modifier,
-    height: androidx.compose.ui.unit.Dp = 6.dp
-) {
-    val animProgress by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
-        label = "progress"
-    )
-    Box(
-        modifier = modifier.height(height).clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.12f))
-    ) {
-        Box(
-            modifier = Modifier.fillMaxHeight()
-                .fillMaxWidth(animProgress)
-                .clip(RoundedCornerShape(50))
-                .background(
-                    Brush.horizontalGradient(listOf(color.copy(alpha = 0.6f), color))
-                )
-        )
     }
 }
