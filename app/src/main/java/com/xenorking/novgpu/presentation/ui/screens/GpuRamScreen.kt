@@ -1,9 +1,7 @@
 package com.xenorking.novgpu.presentation.ui.screens
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,120 +10,111 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.xenorking.novgpu.domain.model.GpuStats
-import com.xenorking.novgpu.domain.model.RamStats
+import com.xenorking.novgpu.domain.model.SystemStats
 import com.xenorking.novgpu.presentation.ui.components.*
 import com.xenorking.novgpu.presentation.ui.theme.*
 
+/**
+ * GPU: /sys/class/kgsl/kgsl-3d0/gpu_busy_percentage (Qualcomm Adreno)
+ *      /sys/class/misc/mali0/device/utilization (ARM Mali)
+ *      Название/вендор: OpenGL ES renderer string через GLSurfaceView
+ *
+ * ОЗУ: ActivityManager.getMemoryInfo() — официальный Android API
+ *      totalMem, availMem, threshold — системные значения
+ */
 @Composable
-fun GpuRamScreen(gpu: GpuStats, ram: RamStats) {
+fun GpuRamScreen(stats: SystemStats, modifier: Modifier = Modifier) {
+    val scrollState = rememberScrollState()
+    val gpu = stats.gpu
+    val ram = stats.ram
+
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkBg)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // GPU Section
-        Text(
-            "[ GPU ]",
-            color = GpuColor,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp
-        )
+        ScreenTitle("GPU / ОЗУ", "Видеопроцессор и оперативная память")
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            NeonGauge(value = gpu.usagePercent, color = GpuColor, label = "GPU LOAD", size = 140.dp)
+        // Индикаторы
+        Row(Modifier.fillMaxWidth(), Arrangement.SpaceEvenly) {
+            NeonGauge(value = gpu.usagePercent, color = NeonGreen, label = "GPU", size = 130.dp)
+            NeonGauge(value = ram.usagePercent, color = NeonPurple, label = "ОЗУ", size = 130.dp)
         }
 
-        NeonStatCard(accentColor = GpuColor) {
-            Text("GPU HISTORY", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 1.5.sp)
-            Spacer(Modifier.height(8.dp))
-            NeonLineChart(data = gpu.history, color = GpuColor, height = 80.dp)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "RENDERER: ${gpu.renderer}",
-                color = GpuColor.copy(alpha = 0.7f),
-                fontSize = 10.sp,
-                letterSpacing = 0.5.sp
-            )
-            Text(
-                "VENDOR: ${gpu.vendor}",
-                color = GpuColor.copy(alpha = 0.6f),
-                fontSize = 10.sp,
-                letterSpacing = 0.5.sp
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        // RAM Section
-        Text(
-            "[ RAM ]",
-            color = RamColor,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 2.sp
-        )
-
-        NeonStatCard(accentColor = RamColor) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                NeonGauge(value = ram.usagePercent, color = RamColor, label = "USED", size = 110.dp)
-                Column(
-                    modifier = Modifier.weight(1f).padding(start = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    RamBarItem("USED", ram.usedMb, ram.totalMb, RamColor)
-                    RamBarItem("FREE", ram.availableMb, ram.totalMb, Color(0xFF00CCFF))
-                    if (ram.swapTotalMb > 0) {
-                        RamBarItem("SWAP", ram.swapUsedMb, ram.swapTotalMb, Color(0xFFAA00FF))
-                    }
+        // GPU инфо
+        SectionCard(title = "ВИДЕОПРОЦЕССОР", color = NeonGreen) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                    NeonStatCard(
+                        title    = "НАГРУЗКА",
+                        value    = "${"%.1f".format(gpu.usagePercent)}%",
+                        subtitle = if (gpu.usagePercent >= 80) "Высокая" else if (gpu.usagePercent >= 40) "Средняя" else "Низкая",
+                        color    = NeonGreen, modifier = Modifier.weight(1f)
+                    )
+                    NeonStatCard(
+                        title    = "ВЕНДОР",
+                        value    = if (gpu.vendor.length > 10) gpu.vendor.take(10) + "…" else gpu.vendor,
+                        subtitle = gpu.version.take(16),
+                        color    = NeonCyan, modifier = Modifier.weight(1f)
+                    )
                 }
+                Text("Рендерер: ${gpu.renderer}", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+                NeonLineChart(data = gpu.history, color = NeonGreen, label = "История GPU %", height = 80.dp)
+                FormulaText("Источник (Adreno)", "/sys/class/kgsl/kgsl-3d0/gpu_busy_percentage")
+                FormulaText("Источник (Mali)",   "/sys/class/misc/mali0/device/utilization")
+                InfoText("Если файл недоступен — вернётся 0% (ограничение Android без root)")
             }
         }
 
-        NeonStatCard(accentColor = RamColor) {
-            Text("RAM HISTORY", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp, letterSpacing = 1.5.sp)
-            Spacer(Modifier.height(8.dp))
-            NeonLineChart(data = ram.history, color = RamColor, height = 80.dp)
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                MemItem("TOTAL", "${ram.totalMb} MB", RamColor)
-                MemItem("USED", "${ram.usedMb} MB", RamColor)
-                MemItem("FREE", "${ram.availableMb} MB", RamColor)
-                if (ram.swapTotalMb > 0) MemItem("SWAP", "${ram.swapTotalMb} MB", Color(0xFFAA00FF))
+        // ОЗУ инфо
+        SectionCard(title = "ОПЕРАТИВНАЯ ПАМЯТЬ", color = NeonPurple) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                    Text("${ram.usedMb} МБ занято", color = NeonPurple, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("${ram.totalMb} МБ всего", color = Color.White.copy(alpha = 0.45f), fontSize = 13.sp)
+                }
+                NeonProgressBar(progress = ram.usagePercent / 100f, color = NeonPurple, modifier = Modifier.fillMaxWidth(), height = 10.dp)
+
+                Row(Modifier.fillMaxWidth(), Arrangement.spacedBy(8.dp)) {
+                    NeonStatCard(
+                        title = "СВОБОДНО",  value = "${ram.availableMb} МБ",
+                        color = NeonGreen, modifier = Modifier.weight(1f)
+                    )
+                    NeonStatCard(
+                        title = "ЗАНЯТО",    value = "${ram.usedMb} МБ",
+                        color = NeonPurple, modifier = Modifier.weight(1f)
+                    )
+                    NeonStatCard(
+                        title = "ВСЕГО",     value = "${ram.totalMb} МБ",
+                        color = NeonBlue, modifier = Modifier.weight(1f)
+                    )
+                }
+
+                NeonLineChart(data = ram.history, color = NeonPurple, label = "История ОЗУ %", height = 80.dp)
+
+                FormulaText("Источник",   "ActivityManager.getMemoryInfo()")
+                FormulaText("totalMem",   "Весь объём RAM устройства")
+                FormulaText("availMem",   "Доступная память прямо сейчас")
+                FormulaText("Занято",     "totalMem − availMem")
+                FormulaText("Загрузка %", "usedMem / totalMem × 100")
             }
         }
 
-        Spacer(Modifier.height(16.dp))
-    }
-}
-
-@Composable
-private fun RamBarItem(label: String, value: Long, total: Long, color: Color) {
-    Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(label, color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp)
-            Text("$value MB", color = color, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        // Как вычисляется GPU
+        SectionCard(title = "КАК РАБОТАЕТ GPU МОНИТОРИНГ", color = NeonGreen) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "Android не предоставляет официального API для загрузки GPU. " +
+                    "Приложение читает системные файлы sysfs, которые публикует драйвер GPU.",
+                    color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, lineHeight = 16.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                FormulaText("Adreno (Qualcomm)", "gpu_busy_percentage — % занятости")
+                FormulaText("Mali (ARM)",        "utilization — значение 0–100")
+                FormulaText("Обновление",        "каждые 1000 мс")
+                InfoText("На некоторых устройствах доступ закрыт — это ограничение производителя")
+            }
         }
-        Spacer(Modifier.height(3.dp))
-        NeonProgressBar(progress = if (total > 0) value.toFloat() / total else 0f, color = color, barHeight = 6.dp)
-    }
-}
 
-@Composable
-private fun MemItem(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = Color.White.copy(alpha = 0.4f), fontSize = 9.sp, letterSpacing = 1.sp)
-        Text(value, color = color, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(72.dp))
     }
 }
